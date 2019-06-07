@@ -4,10 +4,10 @@
 # ==============================================================================
 
 import os
-os.environ["PATH"] += os.pathsep + os.path.join(os.path.dirname(__file__), 'libs')
-cntk_library_path=os.pathsep + os.path.join(os.path.dirname(__file__), 'libs')
+cntk_library_path = os.path.join(os.path.dirname(__file__), 'libs')
+os.environ["PATH"] = cntk_library_path + os.pathsep + os.environ["PATH"]
 if os.environ.get('LD_LIBRARY_PATH'):
-    os.environ['LD_LIBRARY_PATH'] += cntk_library_path
+    os.environ['LD_LIBRARY_PATH'] = cntk_library_path + os.pathsep + os.environ['LD_LIBRARY_PATH']
 else:
     os.environ['LD_LIBRARY_PATH'] = cntk_library_path
 
