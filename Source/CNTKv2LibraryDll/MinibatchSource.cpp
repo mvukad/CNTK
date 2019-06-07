@@ -629,7 +629,7 @@ namespace CNTK
                     if (!deserializerConfig.Contains(L"module"))
                         InvalidArgument("Unknown deserializer type '%S' specified for CNTK built-in composite MinibatchSource construction.", deserializerTypeName.c_str());
                 }
-                else
+                else if (!deserializerConfig.Contains(L"module"))
                     deserializerConfig[L"module"] = deserializerTypeToModule.at(deserializerTypeName);
                 deserializers.push_back(deserializerConfig);
             }
