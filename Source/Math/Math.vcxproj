@@ -77,7 +77,7 @@
       <DelayLoadDLLs>$(MathDelayLoad); $(CudaDlls); %(DelayLoadDLLs)</DelayLoadDLLs>
       <Profile>true</Profile>
     </Link>
-    <PostBuildEvent>
+    <PostBuildEvent Condition="'$(MathPostBuildCopyPattern)'!=''">
       <Message>Copying $(MathLibraryName) DLLs</Message>
       <Command>xcopy /D /I /Y "$(MathPostBuildCopyPattern)" "$(OutDir)"
         if "$(IsUWP)"=="true" xcopy /D /I /Y "$(TargetDir)$(TargetName).lib" "$(TargetDir).."
