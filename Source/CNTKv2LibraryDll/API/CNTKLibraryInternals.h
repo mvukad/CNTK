@@ -20,7 +20,9 @@
 #else
 #define CNTK_API __declspec(dllimport)
 #endif
+#ifndef _SCL_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
+#endif
 #else // no DLLs on Linux
 #define CNTK_API
 #endif
@@ -77,7 +79,9 @@ static inline wchar_t* _wcsdup(const wchar_t *s)
 namespace CNTK
 {
 
+#ifndef UNUSED
 #define UNUSED(x) (void)(x) // for variables that are, e.g., only used in _DEBUG builds
+#endif
 
 #ifdef _MSC_VER
 #define __declspec_noreturn __declspec(noreturn)
