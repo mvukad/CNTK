@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "../CNTKv2LibraryDll/API/HalfConverter.hpp"
+#include "HalfConverter.hpp"
 
 #if !defined(CPUONLY) && __has_include("cuda_fp16.h")
 
