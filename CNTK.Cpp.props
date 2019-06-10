@@ -87,7 +87,7 @@
 
   <PropertyGroup Condition="Exists('$(OPENCV_PATH)')">
     <OpenCvPath>$(OPENCV_PATH)</OpenCvPath>
-    <OpenCvVersion>300</OpenCvVersion>
+    <OpenCvVersion>346</OpenCvVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="Exists('$(OPENCV_PATH_V31)')">
@@ -100,8 +100,8 @@
     <OpenCvWorld Condition="$(ReleaseBuild)">opencv_world$(OpenCvVersion)</OpenCvWorld>
     <OpenCvWorld Condition="$(DebugBuild)">opencv_world$(OpenCvVersion)d</OpenCvWorld>
     <OpenCvLib>$(OpenCvWorld).lib</OpenCvLib>
-    <OpenCvLibPath>$(OpenCvPath)\x64\vc14\lib</OpenCvLibPath>
-    <OpenCvBinPath>$(OpenCvPath)\x64\vc14\bin</OpenCvBinPath>
+    <OpenCvLibPath>$(OpenCvPath)\x64\vc15\lib</OpenCvLibPath>
+    <OpenCvBinPath>$(OpenCvPath)\x64\vc15\bin</OpenCvBinPath>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(HasProtobuf)">
