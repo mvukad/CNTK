@@ -72,8 +72,6 @@
     <PostBuildEvent>
       <Command>
         if "$(HasOpenCv)" == "true" xcopy /I /D /Y "$(OpenCvBinPath)\$(OpenCvWorld).dll" "$(TargetDir)"
-        if "$(UseZip)" == "true" xcopy /I /D /Y "$(ZLIB_PATH)\bin\zip.dll" "$(TargetDir)"
-        if "$(UseZip)" == "true" xcopy /I /D /Y "$(ZLIB_PATH)\bin\zlib.dll" "$(TargetDir)"
       </Command>
       <Message>Copying dependencies</Message>
     </PostBuildEvent>

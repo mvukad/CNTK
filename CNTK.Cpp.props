@@ -18,7 +18,7 @@
     <HasBoost Condition="Exists('$(BOOST_INCLUDE_PATH)') And Exists('$(BOOST_LIB_PATH)')">true</HasBoost>
 
     <UseZip>false</UseZip>
-    <UseZip Condition="Exists('$(ZLIB_PATH)')">true</UseZip>
+    <UseZip Condition="Exists('$(ZLIB_PATH)') And Exists('$(ZIP_PATH)')">true</UseZip>
 
     <HasMultiverso>false</HasMultiverso>
     <HasMultiverso Condition="Exists('$(SolutionDir)\Source\Multiverso\include\multiverso')">true</HasMultiverso>
@@ -78,10 +78,11 @@
   </PropertyGroup>
   
   <PropertyGroup Condition="$(UseZip)">
-    <ZipInclude>$(ZLIB_PATH)\include;$(ZLIB_PATH)\lib\libzip\include;</ZipInclude>
+    <ZipInclude>$(ZLIB_PATH)\include;$(ZIP_PATH)\include;</ZipInclude>
     <ZipDefine>USE_ZIP</ZipDefine>
-    <ZipLibPath>$(ZLIB_PATH)\lib;</ZipLibPath>
-    <ZipLibs>zlib.lib;zip.lib;</ZipLibs>
+    <ZipLibPath>$(ZLIB_PATH)\lib;$(ZIP_PATH)\lib;</ZipLibPath>
+    <ZipLibs Condition="$(ReleaseBuild)">zlibstatic.lib;zip.lib;</ZipLibs>
+    <ZipLibs Condition="$(DebugBuild)">zlibstaticd.lib;zip.lib;</ZipLibs>
   </PropertyGroup>
 
   <PropertyGroup Condition="Exists('$(OPENCV_PATH)')">

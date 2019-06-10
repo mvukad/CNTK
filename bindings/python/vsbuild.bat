@@ -120,8 +120,6 @@ if exist Cntk.BinaryConvolution-%CNTK_COMPONENT_VERSION%.dll (
 if exist Cntk.Deserializers.Image-%CNTK_COMPONENT_VERSION%.dll for %%D in (
   Cntk.Deserializers.Image-%CNTK_COMPONENT_VERSION%.dll
   opencv_world*.dll
-  zip.dll
-  zlib.dll
 ) do set CNTK_LIBRARIES=!CNTK_LIBRARIES!;%CNTK_LIB_PATH%\%%D
 
 if /i %p_GpuBuild% equ true for %%D in (
