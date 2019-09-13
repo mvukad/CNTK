@@ -2,19 +2,19 @@ setlocal
 
 cd "%~dp0"
 
-if not defined VS2017INSTALLDIR (
-  @echo Environment variable VS2017INSTALLDIR not defined.
-  @echo Make sure Visual Studion 2017 is installed.
+if not defined VS2019INSTALLDIR (
+  @echo Environment variable VS2019INSTALLDIR not defined.
+  @echo Make sure Visual Studion 2019 is installed.
   goto FIN
 )
 
-if not exist "%VS2017INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" (
-  echo Error: "%VS2017INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" not found.
-  echo Make sure you have installed Visual Studion 2017 correctly.
+if not exist "%VS2019INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" (
+  echo Error: "%VS2019INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" not found.
+  echo Make sure you have installed Visual Studion 2019 correctly.
   goto FIN
 )
 
-call "%VS2017INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" amd64 -vcvars_ver=14.11
+call "%VS2019INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" amd64
 
 set MSSdk=1
 set DISTUTILS_USE_SDK=1

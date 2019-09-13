@@ -57,21 +57,21 @@ if defined nothingToBuild echo Python support not configured to build.&exit /b 0
 
 if "%p_DebugBuild%" == "true" echo Currently no Python build for Debug configurations, exiting.&exit /b 0
 
-if not defined VS2017INSTALLDIR (
-  @echo Environment variable VS2017INSTALLDIR not defined.
-  @echo Make sure Visual Studion 2017 is installed.
+if not defined VS2019INSTALLDIR (
+  @echo Environment variable VS2019INSTALLDIR not defined.
+  @echo Make sure Visual Studion 2019 is installed.
   exit /b 1
 )
 
 REM vcvarsall.bat scripts changes current working directory,
 REM   so we need to save it and restore it afterwards
 pushd .
-if not exist "%VS2017INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" (
-  echo Error: "%VS2017INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" not found.
-  echo Make sure you have installed Visual Studion 2017 correctly.
+if not exist "%VS2019INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" (
+  echo Error: "%VS2019INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" not found.
+  echo Make sure you have installed Visual Studion 2019 correctly.
   exit /b 1
 )
-call "%VS2017INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" amd64 -vcvars_ver=14.11
+call "%VS2019INSTALLDIR%\VC\Auxiliary\build\vcvarsall.bat" amd64
 popd
 
 set CNTK_LIB_PATH=%p_OutDir%
