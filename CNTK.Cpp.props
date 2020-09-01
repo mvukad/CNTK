@@ -87,7 +87,7 @@
 
   <PropertyGroup Condition="Exists('$(OPENCV_PATH)')">
     <OpenCvPath>$(OPENCV_PATH)</OpenCvPath>
-    <OpenCvVersion>349</OpenCvVersion>
+    <OpenCvVersion>3411</OpenCvVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="Exists('$(OPENCV_PATH_V31)')">
