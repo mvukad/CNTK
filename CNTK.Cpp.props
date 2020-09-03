@@ -120,10 +120,10 @@
     In debug mode we only include cubin/PTX for 30 and rely on PTX / JIT to generate the required native cubin format
     http://docs.nvidia.com/cuda/pascal-compatibility-guide/index.html#building-applications-with-pascal-support -->
     <NvidiaCompute Condition="$(DebugBuild)">$(CNTK_CUDA_CODEGEN_DEBUG)</NvidiaCompute>
-    <NvidiaCompute Condition="$(DebugBuild) And '$(NvidiaCompute)'==''">compute_30,sm_30</NvidiaCompute>
+    <NvidiaCompute Condition="$(DebugBuild) And '$(NvidiaCompute)'==''">compute_50,sm_50</NvidiaCompute>
 
     <NvidiaCompute Condition="$(ReleaseBuild)">$(CNTK_CUDA_CODEGEN_RELEASE)</NvidiaCompute>
-    <NvidiaCompute Condition="$(ReleaseBuild) And '$(NvidiaCompute)'==''">compute_30,sm_30;compute_35,sm_35;compute_50,sm_50;compute_60,sm_60;compute_61,sm_61;compute_70,sm_70;compute_75,sm_75</NvidiaCompute>
+    <NvidiaCompute Condition="$(ReleaseBuild) And '$(NvidiaCompute)'==''">compute_50,sm_50;compute_60,sm_60;compute_61,sm_61;compute_70,sm_70;compute_75,sm_75</NvidiaCompute>
   </PropertyGroup>
 
   <PropertyGroup>
