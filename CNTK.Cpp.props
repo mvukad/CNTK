@@ -123,7 +123,7 @@
     <NvidiaCompute Condition="$(DebugBuild) And '$(NvidiaCompute)'==''">compute_50,sm_50</NvidiaCompute>
 
     <NvidiaCompute Condition="$(ReleaseBuild)">$(CNTK_CUDA_CODEGEN_RELEASE)</NvidiaCompute>
-    <NvidiaCompute Condition="$(ReleaseBuild) And '$(NvidiaCompute)'==''">compute_50,sm_50;compute_60,sm_60;compute_61,sm_61;compute_70,sm_70;compute_75,sm_75</NvidiaCompute>
+    <NvidiaCompute Condition="$(ReleaseBuild) And '$(NvidiaCompute)'==''">compute_50,sm_50;compute_61,sm_61;compute_75,sm_75;compute_86,sm_86</NvidiaCompute>
   </PropertyGroup>
 
   <PropertyGroup>
