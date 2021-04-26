@@ -36,8 +36,8 @@
     <RootNamespace>CNTKv2LibraryDll</RootNamespace>
     <ProjectName>CNTKv2LibraryDll</ProjectName>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)\CNTK.Cpp.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)\CNTK.Cpp.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>

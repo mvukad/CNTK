@@ -28,8 +28,8 @@
     <RootNamespace>DelayLoadedExtensionsDll</RootNamespace>
     <ProjectName>DelayLoadedExtensionsDll</ProjectName>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)\CNTK.Cpp.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)\CNTK.Cpp.props" />
   <PropertyGroup Condition="$(DebugBuild)" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
