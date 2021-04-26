@@ -280,9 +280,20 @@ protected:
         // Find max Memory needed while running static finder. Workaround for cudnnFind fail. Number of algo is constant as in cudnn 5.1
         auto staticFinder = [&,this](cudnnConvolutionFwdAlgo_t& algo, bool noMem) -> cudnnStatus_t
         {
-            if(!noMem)
-                return cudnnGetConvolutionForwardAlgorithm(*m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT, workspace.BufferSize(), &algo);
-            return cudnnGetConvolutionForwardAlgorithm(*m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, CUDNN_CONVOLUTION_FWD_NO_WORKSPACE, 0, &algo);
+            int returnedAlgoCount = 0;
+            cudnnConvolutionFwdAlgoPerf_t perfResults[MaxAlgoCount];
+            cudnnStatus_t status = cudnnGetConvolutionForwardAlgorithm_v7(*m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, MaxAlgoCount, &returnedAlgoCount, perfResults);
+            if (status != CUDNN_STATUS_SUCCESS)
+                return status;
+            for (int i = 0; i < returnedAlgoCount; ++i)
+            {
+                if ((!noMem && (perfResults[i].memory <= workspace.BufferSize())) || (noMem && (perfResults[i].memory == 0)))
+                {
+                    algo = perfResults[i].algo;
+                    return CUDNN_STATUS_SUCCESS;
+                }
+            }
+            return CUDNN_STATUS_NOT_SUPPORTED;
         };
         // find deterministic algorithm
         auto deterministicFinder = [&, this](int& calgo, cudnnConvolutionFwdAlgoPerf_t algoPerf[MaxAlgoCount]) -> cudnnStatus_t
@@ -345,9 +356,20 @@ protected:
         // Find max Memory needed while running static finder. Workaround for cudnnFind fail. Number of algo is constant as in cudnn 5.1
         auto staticFinder = [&,this](cudnnConvolutionBwdDataAlgo_t& algo, bool noMem) -> cudnnStatus_t
         {
-            if(!noMem)
-                return cudnnGetConvolutionBackwardDataAlgorithm(*m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT, workspace.BufferSize(), &algo);
-            return cudnnGetConvolutionBackwardDataAlgorithm(*m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, CUDNN_CONVOLUTION_BWD_DATA_NO_WORKSPACE, 0, &algo);
+            int returnedAlgoCount = 0;
+            cudnnConvolutionBwdDataAlgoPerf_t perfResults[MaxAlgoCount];
+            cudnnStatus_t status = cudnnGetConvolutionBackwardDataAlgorithm_v7(*m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, MaxAlgoCount, &returnedAlgoCount, perfResults);
+            if (status != CUDNN_STATUS_SUCCESS)
+                return status;
+            for (int i = 0; i < returnedAlgoCount; ++i)
+            {
+                if ((!noMem && (perfResults[i].memory <= workspace.BufferSize())) || (noMem && (perfResults[i].memory == 0)))
+                {
+                    algo = perfResults[i].algo;
+                    return CUDNN_STATUS_SUCCESS;
+                }
+            }
+            return CUDNN_STATUS_NOT_SUPPORTED;
         };
         // find deterministic algorithm
         auto deterministicFinder = [&, this](int& calgo, cudnnConvolutionBwdDataAlgoPerf_t algoPerf[MaxAlgoCount]) -> cudnnStatus_t
@@ -410,10 +432,8 @@ protected:
         // Find max Memory needed while running static finder. Workaround for cudnnFind fail. Number of algo is constant as in cudnn 5.1
         auto staticFinder = [&,this](cudnnConvolutionBwdFilterAlgo_t& algo, bool noMem) -> cudnnStatus_t
         {
-            if(!noMem)
-                return cudnnGetConvolutionBackwardFilterAlgorithm(*m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT, workspace.BufferSize(), &algo);
             // special case for half/odd filter
-            if(m_kernelT->isOdd() && m_dataType == CUDNN_DATA_HALF)
+            if(noMem && m_kernelT->isOdd() && m_dataType == CUDNN_DATA_HALF)
             {
                 size_t tmpSize = 0;
                 algo = (cudnnConvolutionBwdFilterAlgo_t) 1;
@@ -421,7 +441,20 @@ protected:
                 workspace.Resize((tmpSize + sizeof(ElemType) - 1) / sizeof(ElemType), 1);
                 return err;
             }
-            return cudnnGetConvolutionBackwardFilterAlgorithm(*m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, CUDNN_CONVOLUTION_BWD_FILTER_NO_WORKSPACE, 0, &algo);
+            int returnedAlgoCount = 0;
+            cudnnConvolutionBwdFilterAlgoPerf_t perfResults[MaxAlgoCount];
+            cudnnStatus_t status = cudnnGetConvolutionBackwardFilterAlgorithm_v7(*m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, MaxAlgoCount, &returnedAlgoCount, perfResults);
+            if (status != CUDNN_STATUS_SUCCESS)
+                return status;
+            for (int i = 0; i < returnedAlgoCount; ++i)
+            {
+                if ((!noMem && (perfResults[i].memory <= workspace.BufferSize())) || (noMem && (perfResults[i].memory == 0)))
+                {
+                    algo = perfResults[i].algo;
+                    return CUDNN_STATUS_SUCCESS;
+                }
+            }
+            return CUDNN_STATUS_NOT_SUPPORTED;
         };
         // find deterministic algorithm
         auto deterministicFinder = [&, this](int& calgo, cudnnConvolutionBwdFilterAlgoPerf_t algoPerf[MaxAlgoCount])->cudnnStatus_t

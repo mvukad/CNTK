@@ -59,6 +59,7 @@ template <class ElemType>
 class CuDnnRNN
 {
 private:
+    CuDnn::ptr_t m_cudnn;
     cudnnDataType_t m_dataType;
     cudnnRNNDescriptor_t m_rnnDesc;
     CuDnnDropout m_dropout;
@@ -75,19 +76,36 @@ private:
 
 public:
     CuDnnRNN(const RnnAttributes& rnnAttributes)
-        : m_rnnDesc(nullptr), m_dropout(0.0f), m_rnnAttributes(rnnAttributes),
+        : m_rnnDesc(nullptr), m_dropout(0.0f), m_rnnAttributes(rnnAttributes), m_cudnn(CuDnn::Instance()),
         m_dataType(CuDnnTensor::GetDataType<ElemType>())
     {
         CUDNN_CALL(cudnnCreateRNNDescriptor(&m_rnnDesc));
 #if CUDNN_VERSION >= 7000
-        CUDNN_CALL(cudnnSetRNNDescriptor_v5(m_rnnDesc,
-                  (int)m_rnnAttributes.m_hiddenSize,
-                  (int)m_rnnAttributes.m_numLayers,
-                  m_dropout,
-                  CUDNN_LINEAR_INPUT, // We can also skip the input matrix transformation
-                  m_rnnAttributes.m_bidirectional ? CUDNN_BIDIRECTIONAL : CUDNN_UNIDIRECTIONAL,
-                  GetMode(),
-                  m_dataType));
+        //CUDNN_CALL(cudnnSetRNNDescriptor_v8(m_rnnDesc,
+        //                                    CUDNN_RNN_ALGO_STANDARD,
+        //                                    GetMode(),
+        //                                    CUDNN_RNN_NO_BIAS,
+        //                                    m_rnnAttributes.m_bidirectional ? CUDNN_BIDIRECTIONAL : CUDNN_UNIDIRECTIONAL,
+        //                                    CUDNN_LINEAR_INPUT, // We can also skip the input matrix transformation
+        //                                    m_dataType,
+        //                                    m_dataType,
+        //                                    CUDNN_DEFAULT_MATH,
+        //                                    (int) m_rnnAttributes.m_hiddenSize,
+        //                                    (int) m_rnnAttributes.m_hiddenSize,
+        //                                    (int) m_rnnAttributes.m_hiddenSize,
+        //                                    (int) m_rnnAttributes.m_numLayers,
+        //                                    m_dropout,
+        //                                    CUDNN_RNN_PADDED_IO_DISABLED));
+        CUDNN_CALL(cudnnSetRNNDescriptor_v6(*m_cudnn,
+                                            m_rnnDesc,
+                                            (int) m_rnnAttributes.m_hiddenSize,
+                                            (int) m_rnnAttributes.m_numLayers,
+                                            m_dropout,
+                                            CUDNN_LINEAR_INPUT, // We can also skip the input matrix transformation
+                                            m_rnnAttributes.m_bidirectional ? CUDNN_BIDIRECTIONAL : CUDNN_UNIDIRECTIONAL,
+                                            GetMode(),
+                                            CUDNN_RNN_ALGO_STANDARD,
+                                            m_dataType));
 #else
         CUDNN_CALL(cudnnSetRNNDescriptor(m_rnnDesc,
                   (int)m_rnnAttributes.m_hiddenSize,

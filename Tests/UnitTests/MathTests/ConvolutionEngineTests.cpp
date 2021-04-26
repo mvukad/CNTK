@@ -723,7 +723,7 @@ BOOST_AUTO_TEST_CASE(ConvolutionForward)
             std::string emsg;
 
             BOOST_REQUIRE_MESSAGE(!out.HasNan("out"), "out" << msgNan);
-            BOOST_REQUIRE_MESSAGE(CheckEqual(out, outB, emsg, relErr, absErr * 3), "out" << msg << ". " << emsg);
+            BOOST_REQUIRE_MESSAGE(CheckEqual(out, outB, emsg, relErr, absErr * 4), "out" << msg << ". " << emsg);
             BOOST_REQUIRE_MESSAGE(CountNans(outBuf) == crowOut * 2 * n, "out" << msgNotNan);
         }
     }
@@ -806,7 +806,7 @@ BOOST_AUTO_TEST_CASE(ConvolutionBackwardData)
             std::string emsg;
 
             BOOST_REQUIRE_MESSAGE(!grad.HasNan("grad"), "grad" << msgNan);
-            BOOST_REQUIRE_MESSAGE(CheckEqual(grad, gradB, emsg, relErr * 2, absErr * 5), "grad" << msg << ". " << emsg);
+            BOOST_REQUIRE_MESSAGE(CheckEqual(grad, gradB, emsg, relErr * 2, absErr * 10), "grad" << msg << ". " << emsg);
             BOOST_REQUIRE_MESSAGE(CountNans(gradBuf) == crowGrad * 2 * n, "grad" << msgNotNan);
         }
     }

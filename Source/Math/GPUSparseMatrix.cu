@@ -341,11 +341,20 @@ void GPUSparseMatrix<ElemType>::ConvertToSparseFormat(MatrixFormat newFormat, GP
     outMatrix.ChangeDeviceTo(GetComputeDeviceId());
     outMatrix.RequireSizeAndAllocate(GetNumRows(), GetNumCols(), NzCount(), newFormat, true, false);
 
+    void *buffer = 0;
+    size_t bufferSize = 0;
+
     if ((oldFormat == matrixFormatSparseCSR && newFormat == matrixFormatSparseCSC) || (oldFormat == matrixFormatSparseCSC && newFormat == matrixFormatSparseCSR))
     {
-        CUSPARSE_CALL(cusparsecsr2cscHelper(cusparseHandle, int(GetNumRows()), int(GetNumCols()), int(GetSizeAllocated()),
-                                            Data(), RowLocation(), ColLocation(), outMatrix.Data(),
-                                            outMatrix.RowLocation(), outMatrix.ColLocation(), CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO));
+        CUSPARSE_CALL(cusparseCsr2cscEx2_bufferSizeHelper(cusparseHandle, int(GetNumRows()), int(GetNumCols()), int(GetSizeAllocated()),
+                                                          Data(), RowLocation(), ColLocation(), outMatrix.Data(),
+                                                          outMatrix.ColLocation(), outMatrix.RowLocation(), CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO,
+                                                          &bufferSize));
+        CUDA_CALL(cudaMalloc(&buffer, bufferSize));
+        CUSPARSE_CALL(cusparseCsr2cscEx2Helper(cusparseHandle, int(GetNumRows()), int(GetNumCols()), int(GetSizeAllocated()),
+                                               Data(), RowLocation(), ColLocation(), outMatrix.Data(),
+                                               outMatrix.ColLocation(), outMatrix.RowLocation(), CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO,
+                                               buffer));
     }
     else
     {
@@ -353,6 +362,7 @@ void GPUSparseMatrix<ElemType>::ConvertToSparseFormat(MatrixFormat newFormat, GP
     }
 
     CUSPARSE_CALL(cusparseDestroy(cusparseHandle));
+    CUDA_CALL(cudaFree(buffer));
 }
 
 template <class ElemType>
@@ -1771,26 +1781,34 @@ void GPUSparseMatrix<ElemType>::MultiplyAndWeightedAdd(ElemType alpha, const GPU
     a.PrepareDevice();
     cusparseHandle_t cusparseHandle = 0;
     CUSPARSE_CALL(cusparseCreate(&cusparseHandle));
-    cusparseMatDescr_t descr = 0;
-    CUSPARSE_CALL(cusparseCreateMatDescr(&descr));
-    cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL);
-    cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO);
+    cusparseSpMatDescr_t descrA = 0;
+    cusparseDnMatDescr_t descrB = 0, descrC = 0;
 
     cusparseOperation_t oper = (transposeA != reinterpretAsCSR) ? CUSPARSE_OPERATION_TRANSPOSE : CUSPARSE_OPERATION_NON_TRANSPOSE;
 
-    int n = (int)b.GetNumCols();
-    int m = (int)(reinterpretAsCSR ? a.GetNumCols() : a.GetNumRows());
-    int k = (int)(reinterpretAsCSR ? a.GetNumRows() : a.GetNumCols());
-    assert(n == (int) c.GetNumCols());
+    int64_t n = (int64_t)b.GetNumCols();
+    int64_t m = (int64_t)(reinterpretAsCSR ? a.GetNumCols() : a.GetNumRows());
+    int64_t k = (int64_t)(reinterpretAsCSR ? a.GetNumRows() : a.GetNumCols());
+    assert(n == (int64_t) c.GetNumCols());
 
     const auto& aRowLocation = reinterpretAsCSR ? a.ColLocation() : a.RowLocation();
     const auto& aColLocation = reinterpretAsCSR ? a.RowLocation() : a.ColLocation();
 
+    void *buffer = 0;
+    size_t bufferSize = 0;
+
     SyncGuard syncGuard;
-    CUSPARSE_CALL(cusparsecsrmmHelper(cusparseHandle, oper, m, n, k, (int) a.GetNumNZElements(), &alpha, descr, a.Buffer(),
-                                     aRowLocation, aColLocation, b.Data(),
-                                     (int) b.GetNumRows(), &beta, c.Data(), (int) c.GetNumRows()));
+    CUSPARSE_CALL(cusparseCreateCsrHelper(&descrA, m, k, int64_t(a.GetNumNZElements()), aRowLocation, aColLocation, a.Buffer(), CUSPARSE_INDEX_BASE_ZERO));
+    CUSPARSE_CALL(cusparseCreateDnMatHelper(&descrB, (transposeA != reinterpretAsCSR) ? m : k, n, int64_t(b.GetNumRows()), b.Data(), CUSPARSE_ORDER_COL));
+    CUSPARSE_CALL(cusparseCreateDnMatHelper(&descrC, (transposeA != reinterpretAsCSR) ? k : m, n, int64_t(c.GetNumRows()), c.Data(), CUSPARSE_ORDER_COL));
+    CUSPARSE_CALL(cusparseSpMM_bufferSizeHelper(cusparseHandle, oper, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, descrA, descrB, &beta, descrC, &bufferSize));
+    CUDA_CALL(cudaMalloc(&buffer, bufferSize));
+    CUSPARSE_CALL(cusparseSpMMHelper(cusparseHandle, oper, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, descrA, descrB, &beta, descrC, buffer));
+    CUSPARSE_CALL(cusparseDestroySpMat(descrA));
+    CUSPARSE_CALL(cusparseDestroyDnMat(descrB));
+    CUSPARSE_CALL(cusparseDestroyDnMat(descrC));
     CUSPARSE_CALL(cusparseDestroy(cusparseHandle));
+    CUDA_CALL(cudaFree(buffer));
 }
 
 template <class ElemType>
@@ -1911,45 +1929,55 @@ void GPUSparseMatrix<ElemType>::Multiply(const GPUSparseMatrix<ElemType>& S1, bo
     S1.PrepareDevice();
     cusparseHandle_t cusparseHandle = 0;
     CUSPARSE_CALL(cusparseCreate(&cusparseHandle));
-    cusparseMatDescr_t descrA = 0, descrB = 0, descrC = 0;
-    CUSPARSE_CALL(cusparseCreateMatDescr(&descrA));
-    CUSPARSE_CALL(cusparseCreateMatDescr(&descrB));
-    CUSPARSE_CALL(cusparseCreateMatDescr(&descrC));
-    cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
-    cusparseSetMatType(descrB, CUSPARSE_MATRIX_TYPE_GENERAL);
-    cusparseSetMatType(descrC, CUSPARSE_MATRIX_TYPE_GENERAL);
-    cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO);
-    cusparseSetMatIndexBase(descrB, CUSPARSE_INDEX_BASE_ZERO);
-    cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
+    cusparseSpMatDescr_t descrA = 0, descrB = 0, descrC = 0;
     cusparseOperation_t operA = transposeS1 ? CUSPARSE_OPERATION_TRANSPOSE : CUSPARSE_OPERATION_NON_TRANSPOSE;
     cusparseOperation_t operB = transposeS2 ? CUSPARSE_OPERATION_TRANSPOSE : CUSPARSE_OPERATION_NON_TRANSPOSE;
 
-    int m = int(transposeS1 ? S1.GetNumCols() : S1.GetNumRows());
-    int n = int(transposeS2 ? S2.GetNumRows() : S2.GetNumCols());
-    int k = int(transposeS1 ? S1.GetNumRows() : S1.GetNumCols());
-    int l = int(transposeS2 ? S2.GetNumCols() : S2.GetNumRows());
+    int64_t m = int64_t(transposeS1 ? S1.GetNumCols() : S1.GetNumRows());
+    int64_t n = int64_t(transposeS2 ? S2.GetNumRows() : S2.GetNumCols());
+    int64_t k = int64_t(transposeS1 ? S1.GetNumRows() : S1.GetNumCols());
+    int64_t l = int64_t(transposeS2 ? S2.GetNumCols() : S2.GetNumRows());
     if (k != l)
         RuntimeError("Sparse matrix multiply: dimensionality mismatch");
 
-    int nnzA = (int) S1.GetNumNZElements();
-    int nnzB = (int) S2.GetNumNZElements();
+    int64_t nnzA = (int64_t) S1.GetNumNZElements();
+    int64_t nnzB = (int64_t) S2.GetNumNZElements();
+
+    cusparseSpGEMMDescr_t gemm = 0;
+    ElemType alpha = 1., beta = 0.;
+    void *buffer1 = 0, *buffer2 = 0;
+    size_t bufferSize1 = 0, bufferSize2 = 0;
 
     SyncGuard syncGuard;
     // Step 1
+    CUSPARSE_CALL(cusparseCreateCsrHelper(&descrA, int64_t(S1.GetNumRows()), int64_t(S1.GetNumCols()), nnzA, S1.RowLocation(), S1.ColLocation(), S1.Buffer(), CUSPARSE_INDEX_BASE_ZERO));
+    CUSPARSE_CALL(cusparseCreateCsrHelper(&descrB, int64_t(S2.GetNumRows()), int64_t(S2.GetNumCols()), nnzB, S2.RowLocation(), S2.ColLocation(), S2.Buffer(), CUSPARSE_INDEX_BASE_ZERO));
+    CUSPARSE_CALL(cusparseCreateCsrHelper(&descrC, m, n, 0, 0, 0, (ElemType *)0, CUSPARSE_INDEX_BASE_ZERO));
+    CUSPARSE_CALL(cusparseSpGEMM_createDescr(&gemm));
+    CUSPARSE_CALL(cusparseSpGEMM_workEstimationHelper(cusparseHandle, operA, operB, &alpha, descrA, descrB, &beta, descrC, gemm, &bufferSize1, 0));
+    CUDA_CALL(cudaMalloc(&buffer1, bufferSize1));
+    CUSPARSE_CALL(cusparseSpGEMM_workEstimationHelper(cusparseHandle, operA, operB, &alpha, descrA, descrB, &beta, descrC, gemm, &bufferSize1, buffer1));
+    CUSPARSE_CALL(cusparseSpGEMM_computeHelper(cusparseHandle, operA, operB, &alpha, descrA, descrB, &beta, descrC, gemm, &bufferSize2, 0));
+    CUDA_CALL(cudaMalloc(&buffer2, bufferSize2));
+    CUSPARSE_CALL(cusparseSpGEMM_computeHelper(cusparseHandle, operA, operB, &alpha, descrA, descrB, &beta, descrC, gemm, &bufferSize2, buffer2));
     c.PrepareBuffer(m, n, false, // false means we cannot reuse the "c" buffer if it exists for temporaries
                     [&](GPUSPARSE_INDEX_TYPE* csrRowPtrC) -> size_t
                     {
-                        int nnzTotal = -1;
-                        CUSPARSE_CALL(cusparseXcsrgemmNnz(cusparseHandle, operA, operB, m, n, k, descrA, nnzA, S1.RowLocation(), S1.ColLocation(), descrB, nnzB,
-                                                          S2.RowLocation(), S2.ColLocation(), descrC, csrRowPtrC, &nnzTotal));
+                        int64_t nnzTotal = -1;
+                        CUSPARSE_CALL(cusparseSpMatGetSize(descrC, &m, &n, &nnzTotal));
                         return nnzTotal;
                     });
+    CUSPARSE_CALL(cusparseCsrSetPointers(descrC, c.RowLocation(), c.ColLocation(), c.Buffer()));
 
     // Step 2
-    CUSPARSE_CALL(cusparsecsrgemmHelper(cusparseHandle, operA, operB, m, n, k, descrA, nnzA, S1.Buffer(), S1.RowLocation(), S1.ColLocation(),
-                                        descrB, nnzB, S2.Buffer(), S2.RowLocation(), S2.ColLocation(),
-                                        descrC, c.Data(), c.RowLocation(), c.ColLocation()));
+    CUSPARSE_CALL(cusparseSpGEMM_copyHelper(cusparseHandle, operA, operB, &alpha, descrA, descrB, &beta, descrC, gemm));
+    CUSPARSE_CALL(cusparseSpGEMM_destroyDescr(gemm));
+    CUSPARSE_CALL(cusparseDestroySpMat(descrA));
+    CUSPARSE_CALL(cusparseDestroySpMat(descrB));
+    CUSPARSE_CALL(cusparseDestroySpMat(descrC));
     cusparseDestroy(cusparseHandle);
+    CUDA_CALL(cudaFree(buffer1));
+    CUDA_CALL(cudaFree(buffer2));
 }
 
 template <class ElemType>
@@ -1995,21 +2023,29 @@ void GPUSparseMatrix<ElemType>::ScaleAndAdd(ElemType alpha, const GPUSparseMatri
     cusparseSetMatIndexBase(descrB, CUSPARSE_INDEX_BASE_ZERO);
     cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
 
+    void *buffer = 0;
+    size_t bufferSize = 0;
+
     SyncGuard syncGuard;
     // Step 1
+    CUSPARSE_CALL(cusparsecsrgeam2_bufferSizeExtHelper(cusparseHandle, m, n, &alpha, descrA, nnzA, a.Data(), a.RowLocation(), a.ColLocation(),
+                                                      &beta, descrB, nnzB, b.Data(), b.RowLocation(), b.ColLocation(), descrC, c.Data(), c.RowLocation(), c.ColLocation(), &bufferSize));
+    CUDA_CALL(cudaMalloc(&buffer, bufferSize));
+
     bool inOutParameter = (&b == &c);
     c.PrepareBuffer(m, n, !inOutParameter,
                     [&](GPUSPARSE_INDEX_TYPE* csrRowPtrC) -> size_t
                     {
                         int nnzTotal = -1;
-                        CUSPARSE_CALL(cusparseXcsrgeamNnz(cusparseHandle, m, n, descrA, nnzA, a.RowLocation(), a.ColLocation(), descrB, nnzB, b.RowLocation(), b.ColLocation(), descrC, csrRowPtrC, &nnzTotal));
+                        CUSPARSE_CALL(cusparseXcsrgeam2Nnz(cusparseHandle, m, n, descrA, nnzA, a.RowLocation(), a.ColLocation(), descrB, nnzB, b.RowLocation(), b.ColLocation(), descrC, csrRowPtrC, &nnzTotal, buffer));
                         return nnzTotal;
                     });
 
     // Step 2
-    CUSPARSE_CALL(cusparsecsrgeamHelper(cusparseHandle, m, n, &alpha, descrA, nnzA, a.Data(), a.RowLocation(), a.ColLocation(),
-                                        &beta, descrB, nnzB, b.Data(), b.RowLocation(), b.ColLocation(), descrC, c.Data(), c.RowLocation(), c.ColLocation()));
+    CUSPARSE_CALL(cusparsecsrgeam2Helper(cusparseHandle, m, n, &alpha, descrA, nnzA, a.Data(), a.RowLocation(), a.ColLocation(),
+                                        &beta, descrB, nnzB, b.Data(), b.RowLocation(), b.ColLocation(), descrC, c.Data(), c.RowLocation(), c.ColLocation(), buffer));
     cusparseDestroy(cusparseHandle);
+    CUDA_CALL(cudaFree(buffer));
 }
 
 template <class ElemType>
@@ -2104,6 +2140,9 @@ ElemType GPUSparseMatrix<ElemType>::InnerProductOfMatrices(const GPUSparseMatrix
 
     bool allocTemp = (a.GetFormat() == matrixFormatSparseCSR);
 
+    void *buffer1 = 0, *buffer2 = 0;
+    size_t bufferSize1 = 0, bufferSize2 = 0;
+
     if (allocTemp) // need to put a in ColumnMajor format
     {
         cscValA = TracingGPUMemoryAllocator::Allocate<ElemType>(a.GetComputeDeviceId(), nnz);
@@ -2111,7 +2150,9 @@ ElemType GPUSparseMatrix<ElemType>::InnerProductOfMatrices(const GPUSparseMatrix
         cscColPtrA = TracingGPUMemoryAllocator::Allocate<GPUSPARSE_INDEX_TYPE>(a.GetComputeDeviceId(), (n + 1));
 
         SyncGuard syncGuard;
-        CUSPARSE_CALL(cusparsecsr2cscHelper(cusparseHandle, m, n, nnz, a.Data(), a.RowLocation(), a.ColLocation(), cscValA, cscRowIndA, cscColPtrA, cpVals, idxBase));
+        CUSPARSE_CALL(cusparseCsr2cscEx2_bufferSizeHelper(cusparseHandle, m, n, nnz, a.Data(), a.RowLocation(), a.ColLocation(), cscValA, cscColPtrA, cscRowIndA, cpVals, idxBase, &bufferSize1));
+        CUDA_CALL(cudaMalloc(&buffer1, bufferSize1));
+        CUSPARSE_CALL(cusparseCsr2cscEx2Helper(cusparseHandle, m, n, nnz, a.Data(), a.RowLocation(), a.ColLocation(), cscValA, cscColPtrA, cscRowIndA, cpVals, idxBase, buffer1));
     }
     else if (a.GetFormat() == matrixFormatSparseCSC)
     {
@@ -2140,14 +2181,24 @@ ElemType GPUSparseMatrix<ElemType>::InnerProductOfMatrices(const GPUSparseMatrix
     // CUDA_CALL(cudaMemcpy(h_vectArray,vectArray,sizeof(GPUSPARSE_INDEX_TYPE)*a.m_nz,cudaMemcpyDeviceToHost));
 
     // Actual dot product
+    cusparseSpVecDescr_t vecX = 0;
+    cusparseDnVecDescr_t vecY = 0;
     ElemType res = 0;
-    CUSPARSE_CALL(cusparsedotiHelper(cusparseHandle, (int) a_nz, cscValA, vectArray, b.Data(), &res, idxBase));
+    CUSPARSE_CALL(cusparseCreateSpVecHelper(&vecX, int64_t(a.GetNumElements()), int64_t(a_nz), vectArray, cscValA, idxBase));
+    CUSPARSE_CALL(cusparseCreateDnVecHelper(&vecY, int64_t(b.GetNumElements()), b.Data()));
+    CUSPARSE_CALL(cusparseSpVV_bufferSizeHelper(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, vecX, vecY, &res, &bufferSize2));
+    CUDA_CALL(cudaMalloc(&buffer2, bufferSize2));
+    CUSPARSE_CALL(cusparseSpVVHelper(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, vecX, vecY, &res, buffer2));
     TracingGPUMemoryAllocator::Free<GPUSPARSE_INDEX_TYPE>(a.GetComputeDeviceId(), vectArray);
     if (allocTemp)
     {
         TracingGPUMemoryAllocator::Free<ElemType>(a.GetComputeDeviceId(), cscValA);
     }
+    CUSPARSE_CALL(cusparseDestroySpVec(vecX));
+    CUSPARSE_CALL(cusparseDestroyDnVec(vecY));
     CUSPARSE_CALL(cusparseDestroy(cusparseHandle));
+    CUDA_CALL(cudaFree(buffer1));
+    CUDA_CALL(cudaFree(buffer2));
     return res;
 }
 
@@ -2411,13 +2462,21 @@ GPUSparseMatrix<ElemType> GPUSparseMatrix<ElemType>::Transpose() const
     cusparseHandle_t cusparseHandle = 0;
     CUSPARSE_CALL(cusparseCreate(&cusparseHandle));
 
+    void *buffer = 0;
+    size_t bufferSize = 0;
+
     SyncGuard syncGuard;
     if (GetFormat() == MatrixFormat::matrixFormatSparseCSR)
     {
         if (nnz > 0)
         {
-            CUSPARSE_CALL(cusparsecsr2cscHelper(cusparseHandle, m, n, nnz, Data(), RowLocation(), ColLocation(),
-                                                c.Data(), c.ColLocation(), c.RowLocation(), cpVals, idxBase));
+            CUSPARSE_CALL(cusparseCsr2cscEx2_bufferSizeHelper(cusparseHandle, m, n, nnz, Data(), RowLocation(), ColLocation(),
+                                                              c.Data(), c.RowLocation(), c.ColLocation(), cpVals, idxBase,
+                                                              &bufferSize));
+            CUDA_CALL(cudaMalloc(&buffer, bufferSize));
+            CUSPARSE_CALL(cusparseCsr2cscEx2Helper(cusparseHandle, m, n, nnz, Data(), RowLocation(), ColLocation(),
+                                                   c.Data(), c.RowLocation(), c.ColLocation(), cpVals, idxBase,
+                                                   buffer));
         }
         else
         {
@@ -2428,8 +2487,13 @@ GPUSparseMatrix<ElemType> GPUSparseMatrix<ElemType>::Transpose() const
     {
         if (nnz > 0)
         {
-            CUSPARSE_CALL(cusparsecsr2cscHelper(cusparseHandle, n, m, nnz, this->Data(), this->ColLocation(), this->RowLocation(),
-                                                c.Data(), c.RowLocation(), c.ColLocation(), cpVals, idxBase));
+            CUSPARSE_CALL(cusparseCsr2cscEx2_bufferSizeHelper(cusparseHandle, n, m, nnz, this->Data(), this->ColLocation(), this->RowLocation(),
+                                                              c.Data(), c.ColLocation(), c.RowLocation(), cpVals, idxBase,
+                                                              &bufferSize));
+            CUDA_CALL(cudaMalloc(&buffer, bufferSize));
+            CUSPARSE_CALL(cusparseCsr2cscEx2Helper(cusparseHandle, n, m, nnz, this->Data(), this->ColLocation(), this->RowLocation(),
+                                                   c.Data(), c.ColLocation(), c.RowLocation(), cpVals, idxBase,
+                                                   buffer));
         }
         else
         {
@@ -2441,6 +2505,7 @@ GPUSparseMatrix<ElemType> GPUSparseMatrix<ElemType>::Transpose() const
         NOT_IMPLEMENTED;
     }
     CUSPARSE_CALL(cusparseDestroy(cusparseHandle));
+    CUDA_CALL(cudaFree(buffer));
     return c;
 }
 
