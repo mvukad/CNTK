@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup Label="Configuration">
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <PlatformToolset>v142</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <UseDebugLibraries Condition="$(Configuration.StartsWith('Debug'))">true</UseDebugLibraries>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ForceImportAfterCppProps>$([MSBuild]::GetPathOfFileAbove(CNTK.Cpp.props))</ForceImportAfterCppProps>
+  </PropertyGroup>
+
+</Project>

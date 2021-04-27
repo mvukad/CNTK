@@ -1,13 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(VS2019INSTALLDIR)\VC\Auxiliary\Build\14.27\Microsoft.VCToolsVersion.14.27.props" />
+<Project>
   <Import Project="$(SolutionDir)\CNTK.Common.props" />
   <PropertyGroup>
     <CudaVersion />
     <CudaVersion Condition="Exists('$(CUDA_PATH_V11_1)') And '$(CudaVersion)' == ''">11.1</CudaVersion>
 
     <NvmlDll>%ProgramW6432%\NVIDIA Corporation\NVSMI\nvml.dll</NvmlDll>
-    <NvmlDll Condition="Exists('c:\local\nvsmi9\NVSMI\nvml.dll')">c:\local\nvsmi9\NVSMI\nvml.dll</NvmlDll>
 
     <HasOpenCv>false</HasOpenCv>
     <HasOpenCv Condition="Exists('$(OPENCV_PATH)')">true</HasOpenCv>
@@ -23,47 +20,12 @@
 
     <HasMultiverso>false</HasMultiverso>
     <HasMultiverso Condition="Exists('$(SolutionDir)\Source\Multiverso\include\multiverso')">true</HasMultiverso>
-
-    <IsUWP>false</IsUWP>
-    <IsUWP Condition="'$(Configuration)'=='Debug_UWP' Or '$(Configuration)'=='Release_UWP'">true</IsUWP>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="!$(IsUWP)">
-    <OutputSuffix />
-  </PropertyGroup>
-  
-  <PropertyGroup Condition="$(IsUWP)">
-    <MathLibrary>OpenBLAS</MathLibrary>
-    <CNTKCustomOpenBLASVersion>2</CNTKCustomOpenBLASVersion>
-    <MathLibraryName>OpenBLAS library (Version: $(CNTKCustomOpenBLASVersion))</MathLibraryName>
-    <CNTKCustomOpenBLASPath>$(CNTK_OPENBLAS_PATH)\$(CNTKCustomOpenBLASVersion)</CNTKCustomOpenBLASPath>    
-    <MathIncludePath>$(CNTKCustomOpenBLASPath)</MathIncludePath>
-    <MathLibraryPath>$(CNTKCustomOpenBLASPath)\lib\x64\RELEASE</MathLibraryPath>
-    <MathDefine>USE_OPENBLAS;OS_WINNT;ARCH_X86_64;C_MSVC</MathDefine>
-    <MathLinkLibrary>libopenblas.lib</MathLinkLibrary>
-    <MathDelayLoad>libopenblas.dll</MathDelayLoad>
-    <MathPostBuildCopyPattern>$(MathLibraryPath)\*.dll</MathPostBuildCopyPattern>
-    <OutputSuffix>_app</OutputSuffix>
-    <AppContainerApplication>true</AppContainerApplication>
-    <ApplicationType>Windows Store</ApplicationType>
-    <WindowsTargetPlatformVersion>$(UCRTVersion)</WindowsTargetPlatformVersion>
-    <TargetPlatformMinVersion>10.0.10586.0</TargetPlatformMinVersion> <!-- Windows 10, November 2015 -->
-    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>
-    <DefaultLanguage>en-US</DefaultLanguage>
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- If an executable links Cntk.Reader-$(CntkComponentVersion).lib, it has dependency on Cntk.Common.dll, Cntk.Math.dll and Cntk.PerformanceProfiler.dll -->
-    <ReaderLibs>Cntk.Reader$(OutputSuffix)-$(CntkComponentVersion).lib;Cntk.Common$(OutputSuffix)-$(CntkComponentVersion).lib;Cntk.Math$(OutputSuffix)-$(CntkComponentVersion).lib;</ReaderLibs>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="!$(IsUWP)">
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <MathLibrary>MKL</MathLibrary>
     <MathIncludePath>$(MKL_PATH)\include</MathIncludePath>
     <MathDefine>USE_MKL</MathDefine>
-    <!-- Only non-UWP configurations consume PerformanceProfiler -->
-    <ReaderLibs>Cntk.PerformanceProfiler-$(CntkComponentVersion).lib;$(ReaderLibs)</ReaderLibs>
     <MathLibraryName>MKL Library</MathLibraryName>
     <MathLibraryPath>$(MKL_PATH)\lib\intel64</MathLibraryPath>
     <MathLinkLibrary>mkl_intel_lp64.lib;mkl_core.lib;mkl_sequential.lib</MathLinkLibrary>
@@ -127,77 +89,44 @@
     <CudaMsbuildPath Condition="'$(CudaMsbuildPath)' == ''">$(VCTargetsPath)\BuildCustomizations</CudaMsbuildPath>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <PlatformToolset>v142</PlatformToolset>
-  </PropertyGroup>
-
   <PropertyGroup Condition="Exists('$(HALIDE_PATH)')">
     <HalidePath>$(HALIDE_PATH)</HalidePath>
     <HalideInclude>$(HALIDE_PATH)\include;</HalideInclude>
     <HalideLibPath>$(HALIDE_PATH)\Release;</HalideLibPath>
     <HalideLib>halide.lib</HalideLib>
   </PropertyGroup>
- 
-  <!-- TODO warn if ConfigurationType not (yet) defined -->
 
-  <PropertyGroup Condition="'$(ConfigurationType)' == 'StaticLibrary'">
-    <UseDebugLibraries>$(DebugBuild)</UseDebugLibraries>
-    <CharacterSet>Unicode</CharacterSet>
-    <WholeProgramOptimization>$(ReleaseBuild)</WholeProgramOptimization>
-    <LinkIncremental>$(DebugBuild)</LinkIncremental>
+  <PropertyGroup>
+    <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>CNTK_VERSION="$(CntkVersion)";CNTK_VERSION_BANNER="$(CntkVersionBanner)";CNTK_COMPONENT_VERSION="$(CntkComponentVersion)"</PreprocessorDefinitions>
-      <!-- UWP does not use MPI -->
-      <PreprocessorDefinitions Condition="!$(IsUWP)">%(PreprocessorDefinitions);HAS_MPI=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CNTK_VERSION="$(CntkVersion)";CNTK_VERSION_BANNER="$(CntkVersionBanner)";CNTK_COMPONENT_VERSION="$(CntkComponentVersion)";HAS_MPI=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(CudaVersion)' == '11.1'">%(PreprocessorDefinitions);CUDA_NO_HALF;__CUDA_NO_HALF_OPERATORS__</PreprocessorDefinitions>
-    </ClCompile>
-  </ItemDefinitionGroup>
-
-  <ItemDefinitionGroup Condition="$(IsUWP)">
-    <ClCompile>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PreprocessorDefinitions>CNTK_UWP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <Link Condition="$(ReleaseBuild)">
-      <AdditionalOptions>/nodefaultlib:vccorlib /nodefaultlib:msvcrt vccorlib.lib msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
-    </Link>
-    <Link Condition="$(DebugBuild)">
-      <AdditionalOptions>/nodefaultlib:vccorlibd /nodefaultlib:msvcrtd vccorlibd.lib msvcrtd.lib %(AdditionalOptions)</AdditionalOptions>
-    </Link>
-  </ItemDefinitionGroup>
-
-  <ItemDefinitionGroup Condition="'$(ConfigurationType)' == 'StaticLibrary'">
-    <ClCompile>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <OpenMPSupport>true</OpenMPSupport>
+      <OpenMPSupport>$(ReleaseBuild)</OpenMPSupport>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
 
-  <ItemDefinitionGroup Condition="'$(ConfigurationType)' == 'StaticLibrary' And $(DebugBuild)">
+  <ItemDefinitionGroup Condition="$(DebugBuild)">
     <ClCompile>
-      <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <Link>
-      <StackReserveSize>100000000</StackReserveSize>
-    </Link>
   </ItemDefinitionGroup>
 
-  <ItemDefinitionGroup Condition="$(ReleaseBuild) And !$(NoOptBuild)">
+  <ItemDefinitionGroup Condition="$(ReleaseBuild)">
     <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -205,24 +134,5 @@
       <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
-
-  <ItemDefinitionGroup Condition="$(NoOptBuild)">
-    <ClCompile>
-      <Optimization>Disabled</Optimization>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <IntrinsicFunctions>false</IntrinsicFunctions>
-    </ClCompile>
-    <Link>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <OptimizeReferences>false</OptimizeReferences>
-      <Profile>false</Profile>
-    </Link>
-  </ItemDefinitionGroup>
-
-  <PropertyGroup Condition="$(NoOptBuild)" Label="Configuration">
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>false</WholeProgramOptimization>
-    <LinkIncremental>true</LinkIncremental>
-  </PropertyGroup>
 
 </Project>

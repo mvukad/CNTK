@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project>
   <PropertyGroup>
     <!-- Note: SolutionDir / RepoRootPath are the same in current setup -->
     <RepoRootPath>$(MSBuildThisFileDirectory)</RepoRootPath>
@@ -18,14 +17,6 @@
     <FlavorName Condition="$(ReleaseBuild)">Release</FlavorName>
     
     <GpuBuild>true</GpuBuild>
-    <GpuBuild Condition="$(Configuration.EndsWith('_CpuOnly'))">false</GpuBuild>
-    <GpuBuild Condition="$(Configuration.EndsWith('_UWP'))">false</GpuBuild>
-
-    <CpuOnlyBuild>true</CpuOnlyBuild>
-    <CpuOnlyBuild Condition="$(GpuBuild)">false</CpuOnlyBuild>
-
-    <NoOptBuild>false</NoOptBuild>
-    <NoOptBuild Condition="$(Configuration.Contains('NoOpt'))">true</NoOptBuild>
 
     <HasSwig>false</HasSwig>
     <HasSwig Condition="Exists('$(SWIG_PATH)\swig.exe')">true</HasSwig>

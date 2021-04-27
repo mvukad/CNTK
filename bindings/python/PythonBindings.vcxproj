@@ -1,39 +1,28 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release_NoOpt|x64">
-      <Configuration>Release_NoOpt</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug_CpuOnly|x64">
-      <Configuration>Debug_CpuOnly</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release_CpuOnly|x64">
-      <Configuration>Release_CpuOnly</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{CD721536-CFD3-413E-A3D7-FB0FAF989635}</ProjectGuid>
     <Keyword>MakeFileProj</Keyword>
+    <ProjectGuid>{CD721536-CFD3-413E-A3D7-FB0FAF989635}</ProjectGuid>
+    <RootNamespace>PythonBindings</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <Import Project="$(SolutionDir)\CNTK.Cpp.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Makefile</ConfigurationType>
-    <UseDebugLibraries>$(DebugBuild)</UseDebugLibraries>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -163,7 +152,44 @@
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Examples\Extensibility\CPPLib\CPPExtensibilityExamplesLibrary.vcxproj">
+      <Project>{4cf94a50-0d17-432a-8b5a-8458e91c44a6}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\CNTKv2LibraryDll\CNTKv2LibraryDll.vcxproj">
+      <Project>{e5606ece-48ca-4464-bb12-09d81d02b9ef}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\DelayLoadedExtensionsDll\DelayLoadedExtensionsDll.vcxproj">
+      <Project>{2ece5aeb-f471-4a1d-9bad-963d5c8a8a1d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Math\Math.vcxproj">
+      <Project>{60bdb847-d0c4-4fd3-a947-0c15c08bcdb5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\PerformanceProfilerDll\PerformanceProfilerDll.vcxproj">
+      <Project>{4b442d34-641a-4b37-9a4b-d18dbe28a979}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\CNTKBinaryReader\CNTKBinaryReader.vcxproj">
+      <Project>{7fe16cbe-b717-45c9-97fb-fa3191039568}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\CNTKTextFormatReader\CNTKTextFormatReader.vcxproj">
+      <Project>{91973e60-a7be-4c86-8fdb-59c88a0b3715}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\CompositeDataReader\CompositeDataReader.vcxproj">
+      <Project>{7b7a563d-aa8e-4660-a805-d50235a02120}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\HTKDeserializers\HTKDeserializers.vcxproj">
+      <Project>{7b7a51ed-aa8e-4660-a805-d50235a02120}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\HTKMLFReader\HTKMLFReader.vcxproj">
+      <Project>{33d2fd22-def2-4507-a58a-368f641aebe5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\ImageReader\ImageReader.vcxproj">
+      <Project>{9bd0a711-0bbd-45b6-b81c-053f03c26cfb}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Source\Readers\UCIFastReader\UCIFastReader.vcxproj">
+      <Project>{e6646ffe-3588-4276-8a15-8d65c22711c1}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>
