@@ -29,7 +29,7 @@
         <CuDnnIncPath>$(CUDNN_PATH)\include</CuDnnIncPath>
         <CuDnnLibPath>$(CUDNN_PATH)\lib\x64</CuDnnLibPath>
         <CuDnnLib>cudnn.lib</CuDnnLib>
-        <CuDnnDll>$(CUDNN_PATH)\bin\cudnn64_*.dll</CuDnnDll>
+        <CuDnnDll>$(CUDNN_PATH)\bin\cudnn*64_*.dll</CuDnnDll>
       </PropertyGroup>
     </When>
     <Otherwise>

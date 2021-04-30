@@ -126,7 +126,7 @@ if /i %p_GpuBuild% equ true for %%D in (
   cublas64_*.dll
   cublasLt64_*.dll
   cudart64_*.dll
-  cudnn64_*.dll
+  cudnn*64_*.dll
   curand64_*.dll
   cusparse64_*.dll
   nvml.dll
