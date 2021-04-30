@@ -37,14 +37,6 @@ private:
     cudnnTensorDescriptor_t m_tensor;
 };
 
-struct CuDnn final
-{
-    using ptr_t = std::shared_ptr<cudnnHandle_t>;
-    static ptr_t Instance();
-
-    DISABLE_COPY_AND_MOVE(CuDnn);
-};
-
 template <typename ElemType>
 struct Consts
 {

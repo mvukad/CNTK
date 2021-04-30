@@ -15,22 +15,25 @@ namespace Microsoft { namespace MSR { namespace CNTK {
 // is managed properly.
 class CuDnnDropout
 {
-    CuDnn::ptr_t m_cudnn;
+    cudnnHandle_t m_cudnn;
     unsigned long long m_seed = 1;
 public:
     CuDnnDropout(float dropout = 0.0f, unsigned long long seed = 1)
-        : m_dropoutDesc(nullptr), m_cudnn(CuDnn::Instance())
+        : m_dropoutDesc(nullptr), m_cudnn(nullptr)
     {
+        CUDNN_CALL(cudnnCreate(&m_cudnn));
+        CUDNN_CALL(cudnnSetStream(m_cudnn, GetStream()));
+
         CUDNN_CALL(cudnnCreateDropoutDescriptor(&m_dropoutDesc));
         size_t stateSize;
         void *states;
-        CUDNN_CALL(cudnnDropoutGetStatesSize(*m_cudnn, &stateSize));
+        CUDNN_CALL(cudnnDropoutGetStatesSize(m_cudnn, &stateSize));
 
         // bugbug: possible leak. Does CuDnn release this for us?
         CUDA_CALL(cudaMalloc(&states, stateSize));
 
         CUDNN_CALL(cudnnSetDropoutDescriptor(m_dropoutDesc,
-            *m_cudnn,
+            m_cudnn,
             dropout,
             states,
             stateSize,
@@ -43,6 +46,8 @@ public:
         {
             cudnnDestroyDropoutDescriptor(m_dropoutDesc);
         }
+
+        cudnnDestroy(m_cudnn);
     }
 
     operator cudnnDropoutDescriptor_t() const
@@ -59,7 +64,7 @@ template <class ElemType>
 class CuDnnRNN
 {
 private:
-    CuDnn::ptr_t m_cudnn;
+    cudnnHandle_t m_cudnn;
     cudnnDataType_t m_dataType;
     cudnnRNNDescriptor_t m_rnnDesc;
     CuDnnDropout m_dropout;
@@ -76,9 +81,12 @@ private:
 
 public:
     CuDnnRNN(const RnnAttributes& rnnAttributes)
-        : m_rnnDesc(nullptr), m_dropout(0.0f), m_rnnAttributes(rnnAttributes), m_cudnn(CuDnn::Instance()),
+        : m_rnnDesc(nullptr), m_dropout(0.0f), m_rnnAttributes(rnnAttributes), m_cudnn(nullptr),
         m_dataType(CuDnnTensor::GetDataType<ElemType>())
     {
+        CUDNN_CALL(cudnnCreate(&m_cudnn));
+        CUDNN_CALL(cudnnSetStream(m_cudnn, GetStream()));
+
         CUDNN_CALL(cudnnCreateRNNDescriptor(&m_rnnDesc));
 #if CUDNN_VERSION >= 7000
         //CUDNN_CALL(cudnnSetRNNDescriptor_v8(m_rnnDesc,
@@ -96,7 +104,7 @@ public:
         //                                    (int) m_rnnAttributes.m_numLayers,
         //                                    m_dropout,
         //                                    CUDNN_RNN_PADDED_IO_DISABLED));
-        CUDNN_CALL(cudnnSetRNNDescriptor_v6(*m_cudnn,
+        CUDNN_CALL(cudnnSetRNNDescriptor_v6(m_cudnn,
                                             m_rnnDesc,
                                             (int) m_rnnAttributes.m_hiddenSize,
                                             (int) m_rnnAttributes.m_numLayers,
@@ -125,6 +133,8 @@ public:
             cudnnDestroyRNNDescriptor(m_rnnDesc);
             m_rnnDesc = nullptr;
         }
+
+        cudnnDestroy(m_cudnn);
     }
 
     bool IsCompatible(const RnnAttributes& rnnAttributes) const
@@ -153,17 +163,20 @@ template <class ElemType>
 class CuDnnFilter
 {
     cudnnDataType_t m_dataType;
-    CuDnn::ptr_t m_cudnn;
+    cudnnHandle_t m_cudnn;
     size_t m_filterSize;
 public:
     CuDnnFilter(const CuDnnRNN<ElemType>& rnn, const cudnnTensorDescriptor_t& xDesc) :
-        m_cudnn(CuDnn::Instance()), m_dataType(CuDnnTensor::GetDataType<ElemType>())
+        m_cudnn(nullptr), m_dataType(CuDnnTensor::GetDataType<ElemType>())
     {
+        CUDNN_CALL(cudnnCreate(&m_cudnn));
+        CUDNN_CALL(cudnnSetStream(m_cudnn, GetStream()));
+
         CUDNN_CALL(cudnnCreateFilterDescriptor(&m_filterDesc));
         try
         {
             size_t filterSize;
-            CUDNN_CALL(cudnnGetRNNParamsSize(*m_cudnn, rnn, xDesc, &filterSize, m_dataType));
+            CUDNN_CALL(cudnnGetRNNParamsSize(m_cudnn, rnn, xDesc, &filterSize, m_dataType));
 
             size_t dataSize = 2; // CUDNN_DATA_HALF
 
@@ -188,6 +201,8 @@ public:
     {
         assert(m_filterDesc != nullptr);
         cudnnDestroyFilterDescriptor(m_filterDesc);
+
+        cudnnDestroy(m_cudnn);
     }
     size_t GetSize() { return m_filterSize; }
     operator cudnnFilterDescriptor_t() const
@@ -208,18 +223,26 @@ private:
 template <class ElemType>
 class CuDnnRNNExecutor
 {
-    CuDnn::ptr_t m_cudnn;
+    cudnnHandle_t m_cudnn;
     cudnnDataType_t m_dataType;
     size_t m_xDim, m_yDim;
 public:
     CuDnnRNNExecutor(size_t xDim, size_t yDim, const RnnAttributes& rnnAttributes ) :
-        m_cudnn(CuDnn::Instance()),
+        m_cudnn(nullptr),
         m_xDim(xDim), m_yDim(yDim),
         m_seqLength(0),
         m_dataType(CuDnnTensor::GetDataType<ElemType>()),
         m_BackwardDataCalledYet(false)
     {
+        CUDNN_CALL(cudnnCreate(&m_cudnn));
+        CUDNN_CALL(cudnnSetStream(m_cudnn, GetStream()));
+
         m_rnnT = std::make_unique<CuDnnRNN<ElemType>>(rnnAttributes);
+    }
+
+    ~CuDnnRNNExecutor()
+    {
+        cudnnDestroy(m_cudnn);
     }
 
     void ForwardCore(const GPUMatrix<ElemType>& weightsW, const GPUMatrix<ElemType>& inputX, GPUMatrix<ElemType>& outputY, const vector<size_t>& numSequencesForFrame, const RnnAttributes& rnnAttributes, GPUMatrix<ElemType>& reserve, GPUMatrix<ElemType>& workspace);

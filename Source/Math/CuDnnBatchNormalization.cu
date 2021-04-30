@@ -23,11 +23,18 @@ public:
     CuDnnBatchNormEngine(DEVICEID_TYPE deviceId, const TensorShape& inOutT,
                         bool spatial, ImageLayoutKind imageLayout)
                         : Base(deviceId, inOutT, spatial, imageLayout),
-                        m_cudnn(CuDnn::Instance()),
+                        m_cudnn(nullptr),
                         m_inOutCuDnnT(GetInOutTensor(inOutT), CuDnnTensor::GetDataType<InoutType>()),
                         m_scaleBiasCuDnnT(GetScaleBiasTensor(inOutT, spatial), CuDnnTensor::GetDataType<StatType>()),
                         m_cudnnEpsilon(CUDNN_BN_MIN_EPSILON)
     {
+        CUDNN_CALL(cudnnCreate(&m_cudnn));
+        CUDNN_CALL(cudnnSetStream(m_cudnn, GetStream()));
+    }
+
+    ~CuDnnBatchNormEngine()
+    {
+        cudnnDestroy(m_cudnn);
     }
 
 protected:
@@ -63,7 +70,7 @@ protected:
             assert(expAvgFactor == 0 && blendFactor == 1);
             savedMean.Resize(0, 0);      // (these are not produced in this case)
             savedInvStdDev.Resize(0, 0);
-            CUDNN_CALL2(cudnnBatchNormalizationForwardInference(*m_cudnn, mode, &C::One, &C::Zero, m_inOutCuDnnT, ptr(in), m_inOutCuDnnT, ptr(out),
+            CUDNN_CALL2(cudnnBatchNormalizationForwardInference(m_cudnn, mode, &C::One, &C::Zero, m_inOutCuDnnT, ptr(in), m_inOutCuDnnT, ptr(out),
                                                                   m_scaleBiasCuDnnT, ptr(scale), ptr(bias), ptr(runMean), ptr(runVariance), m_cudnnEpsilon),
                         "\nProbably hitting cuDNN limit on batch size, try reducing minibatch size");
         }
@@ -71,7 +78,7 @@ protected:
         {
             savedMean.Resize(runMean);
             savedInvStdDev.Resize(runMean);
-            CUDNN_CALL(cudnnBatchNormalizationForwardTraining(*m_cudnn, mode, &C::One, &C::Zero, m_inOutCuDnnT, ptr(in),
+            CUDNN_CALL(cudnnBatchNormalizationForwardTraining(m_cudnn, mode, &C::One, &C::Zero, m_inOutCuDnnT, ptr(in),
                                                               m_inOutCuDnnT, ptr(out), m_scaleBiasCuDnnT, ptr(scale), ptr(bias), expAvgFactor, ptr(runMean), ptr(runVariance),
                                                               m_cudnnEpsilon, ptr(savedMean), ptr(savedInvStdDev)));
         }
@@ -84,7 +91,7 @@ protected:
         m_inOutCuDnnT.UpdateBatchSize(srcGrad.GetNumCols());
         cudnnBatchNormMode_t mode = m_spatial ? CUDNN_BATCHNORM_SPATIAL_PERSISTENT : CUDNN_BATCHNORM_PER_ACTIVATION;
         // REVIEW alexeyk: change betaParamDiff to 1 and update CNTK BN engine.
-        CUDNN_CALL(cudnnBatchNormalizationBackward(*m_cudnn, mode, &C::One, accumulateDataGrad ? &C::One : &C::Zero, &C::One, &C::Zero, m_inOutCuDnnT, ptr(in), m_inOutCuDnnT, ptr(srcGrad), m_inOutCuDnnT, ptr(grad),
+        CUDNN_CALL(cudnnBatchNormalizationBackward(m_cudnn, mode, &C::One, accumulateDataGrad ? &C::One : &C::Zero, &C::One, &C::Zero, m_inOutCuDnnT, ptr(in), m_inOutCuDnnT, ptr(srcGrad), m_inOutCuDnnT, ptr(grad),
                                                    m_scaleBiasCuDnnT, ptr(scale), ptr(scaleGrad), ptr(biasGrad), m_cudnnEpsilon, ptr(savedMean), ptr(savedInvStdDev)));
     }
 
@@ -130,7 +137,7 @@ private:
 private:
     using C = Consts<StatType>;
 
-    CuDnn::ptr_t m_cudnn;
+    cudnnHandle_t m_cudnn;
     CuDnnTensor m_inOutCuDnnT;
     CuDnnTensor m_scaleBiasCuDnnT;
     double m_cudnnEpsilon;

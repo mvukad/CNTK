@@ -87,9 +87,9 @@ void CuDnnRNNExecutor<ElemType>::ForwardCore(
     size_t reserveSize;
 
     // Need for every pass
-    CUDNN_CALL(cudnnGetRNNWorkspaceSize(*m_cudnn, *m_rnnT, (int)m_seqLength, xDesc.data(), &workSize));
+    CUDNN_CALL(cudnnGetRNNWorkspaceSize(m_cudnn, *m_rnnT, (int)m_seqLength, xDesc.data(), &workSize));
     // Only needed in training, can't be touched between passes.
-    CUDNN_CALL(cudnnGetRNNTrainingReserveSize(*m_cudnn, *m_rnnT, (int)m_seqLength, xDesc.data(), &reserveSize));
+    CUDNN_CALL(cudnnGetRNNTrainingReserveSize(m_cudnn, *m_rnnT, (int)m_seqLength, xDesc.data(), &reserveSize));
 
     // convert from bytes to ElemType
     workSize = (workSize + sizeof(ElemType) - 1) / (sizeof(ElemType));
@@ -103,7 +103,7 @@ void CuDnnRNNExecutor<ElemType>::ForwardCore(
         InvalidArgument("RNN needs %ld parameters, but %ld were allocated", wDesc->GetSize(), weightsW.GetNumElements());
 
     CUDNN_CALL(cudnnRNNForwardTraining(
-        *m_cudnn, *m_rnnT,
+        m_cudnn, *m_rnnT,
         (int)m_seqLength,
         xDesc.data(), inputX.Data(),
         0, 0,
@@ -131,7 +131,7 @@ void CuDnnRNNExecutor<ElemType>::BackwardDataCore(
     if (!m_BackwardDataCalledYet)
     {
         CUDNN_CALL(cudnnRNNBackwardData(
-            *m_cudnn, *m_rnnT,
+            m_cudnn, *m_rnnT,
             (int)m_seqLength,
             yDesc.data(), outputY.Data(),
             yDesc.data(), outputDY.Data(),
@@ -161,7 +161,7 @@ void CuDnnRNNExecutor<ElemType>::BackwardWeightsCore(const GPUMatrix<ElemType>& 
     if (!m_BackwardDataCalledYet)
         LogicError("out of order calling you have been very bad");
     CUDNN_CALL(cudnnRNNBackwardWeights(
-        *m_cudnn, *m_rnnT,
+        m_cudnn, *m_rnnT,
         (int)m_seqLength,
         xDesc.data(), inputX.Data(),
         0, 0,

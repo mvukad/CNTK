@@ -100,32 +100,4 @@ template cudnnDataType_t CuDnnTensor::GetDataType<float>();
 template cudnnDataType_t CuDnnTensor::GetDataType<double>();
 template cudnnDataType_t CuDnnTensor::GetDataType<half>();
 
-CuDnn::ptr_t CuDnn::Instance()
-{
-    auto createNew = []()
-    {
-        int deviceId;
-        CUDA_CALL(cudaGetDevice(&deviceId));
-        cudaDeviceProp props = {0};
-        if (cudaGetDeviceProperties(&props, deviceId) != cudaSuccess || props.major < 3)
-            RuntimeError("cuDNN requires device with compute capability 3.0 or higher.");
-        cudnnHandle_t* cudnn = new cudnnHandle_t;
-        CUDNN_CALL(cudnnCreate(cudnn));
-        CUDNN_CALL(cudnnSetStream(*cudnn, GetStream()));
-        return cudnn;
-    };
-
-    static std::shared_ptr<cudnnHandle_t> m_instance = std::shared_ptr<cudnnHandle_t>(createNew(), [](cudnnHandle_t* src)
-    {
-        assert(*src != nullptr);
-        auto err = cudnnDestroy(*src);
-        assert(err == CUDNN_STATUS_SUCCESS);
-#ifdef NDEBUG
-        UNUSED(err);
-#endif
-        delete src;
-    });
-    return m_instance;
-}
-
 } } }

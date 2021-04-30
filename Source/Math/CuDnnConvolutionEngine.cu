@@ -218,11 +218,14 @@ public:
                            size_t maxTempMemSizeInSamples, PoolKind poolKind, bool forceDeterministicAlgorithms,
                            bool poolIncludePad, bool inputHasFreeDimension)
         : Base(geometry, deviceId, imageLayout, maxTempMemSizeInSamples, poolKind, poolIncludePad),
-          m_cudnn(CuDnn::Instance()),
+          m_cudnn(nullptr),
           m_dataType(CuDnnTensor::GetDataType<ElemType>()),
           m_forceDeterministicAlgorithms(forceDeterministicAlgorithms),
           m_inputHasFreeDimension(inputHasFreeDimension)
     {
+        CUDNN_CALL(cudnnCreate(&m_cudnn));
+        CUDNN_CALL(cudnnSetStream(m_cudnn, GetStream()));
+
         auto inShape = geometry->InputShape();
         auto outShape = geometry->OutputShape();
 
@@ -240,6 +243,11 @@ public:
         outputDims[0] = outShape[0];
         m_inT.Set(TensorShape(inputDims), m_dataType);
         m_outT.Set(TensorShape(outputDims), m_dataType);
+    }
+
+    ~CuDnnConvolutionEngine()
+    {
+        cudnnDestroy(m_cudnn);
     }
 
     virtual bool ImplementsGradientOverwriteOptimization() const override { return true; }
@@ -275,14 +283,14 @@ protected:
         // Find best algo and allocate temp buffer, if needed.
         auto finder = [&,this](int& calgo, cudnnConvolutionFwdAlgoPerf_t algoPerf[MaxAlgoCount]) -> cudnnStatus_t
         {
-            return cudnnFindConvolutionForwardAlgorithmEx(*m_cudnn, m_inT, ptr(in), *m_kernelT, ptr(kernel), *m_conv, m_outT, ptr(out), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
+            return cudnnFindConvolutionForwardAlgorithmEx(m_cudnn, m_inT, ptr(in), *m_kernelT, ptr(kernel), *m_conv, m_outT, ptr(out), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
         };
         // Find max Memory needed while running static finder. Workaround for cudnnFind fail. Number of algo is constant as in cudnn 5.1
         auto staticFinder = [&,this](cudnnConvolutionFwdAlgo_t& algo, bool noMem) -> cudnnStatus_t
         {
             int returnedAlgoCount = 0;
             cudnnConvolutionFwdAlgoPerf_t perfResults[MaxAlgoCount];
-            cudnnStatus_t status = cudnnGetConvolutionForwardAlgorithm_v7(*m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, MaxAlgoCount, &returnedAlgoCount, perfResults);
+            cudnnStatus_t status = cudnnGetConvolutionForwardAlgorithm_v7(m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, MaxAlgoCount, &returnedAlgoCount, perfResults);
             if (status != CUDNN_STATUS_SUCCESS)
                 return status;
             for (int i = 0; i < returnedAlgoCount; ++i)
@@ -314,7 +322,7 @@ protected:
             cudnnStatus_t err = CUDNN_STATUS_EXECUTION_FAILED;
             for (int i = 0; i < MaxAlgoCount; i++)
             {
-                auto err0 = cudnnGetConvolutionForwardWorkspaceSize(*m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, (cudnnConvolutionFwdAlgo_t)i, &tmpSize);
+                auto err0 = cudnnGetConvolutionForwardWorkspaceSize(m_cudnn, m_inT, *m_kernelT, *m_conv, m_outT, (cudnnConvolutionFwdAlgo_t)i, &tmpSize);
                 if (err0 == CUDNN_STATUS_SUCCESS)
                 {
                     if (m_fwdAlgo.MaxAlgoWorkspaceSize < tmpSize)
@@ -331,7 +339,7 @@ protected:
         if(m_dataType == CUDNN_DATA_HALF) CUDNN_CALL(cudnnSetConvolutionMathType(*m_conv, m_fwdAlgo.AlgoMathType));
         else CUDNN_CALL(cudnnSetConvolutionMathType(*m_conv, CUDNN_DEFAULT_MATH));
         // Perform forward convolution operation.
-        CUDNN_CALL(cudnnConvolutionForward(*m_cudnn, &C::One, m_inT, ptr(in), *m_kernelT, ptr(kernel), *m_conv, m_fwdAlgo.selectedAlgo, ptr(workspace), workspace.BufferSize(), &C::Zero, m_outT, ptr(out)));
+        CUDNN_CALL(cudnnConvolutionForward(m_cudnn, &C::One, m_inT, ptr(in), *m_kernelT, ptr(kernel), *m_conv, m_fwdAlgo.selectedAlgo, ptr(workspace), workspace.BufferSize(), &C::Zero, m_outT, ptr(out)));
     }
 
     void BackwardDataCore(const Mat& srcGrad, const Mat& kernel, Mat& grad, bool accumulateGradient, Mat& workspace) override
@@ -346,11 +354,11 @@ protected:
                 // cudnnFindConvolutionBackwardDataAlgorithmEx will overwrite the output buffer, thus we create a temporary buffer here
                 // note this memory allocation might fail, so use try...catch for safety
                 auto gradReplace = Matrix<ElemType>((grad.BufferSize() + sizeof(ElemType) - 1)/sizeof(ElemType), 1, m_deviceId);
-                result = cudnnFindConvolutionBackwardDataAlgorithmEx(*m_cudnn, *m_kernelT, ptr(kernel), m_outT, ptr(srcGrad), *m_conv, m_inT, ptr(gradReplace), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
+                result = cudnnFindConvolutionBackwardDataAlgorithmEx(m_cudnn, *m_kernelT, ptr(kernel), m_outT, ptr(srcGrad), *m_conv, m_inT, ptr(gradReplace), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
                 gradReplace.ReleaseMemory();
             }
             else
-                result = cudnnFindConvolutionBackwardDataAlgorithmEx(*m_cudnn, *m_kernelT, ptr(kernel), m_outT, ptr(srcGrad), *m_conv, m_inT, ptr(grad), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
+                result = cudnnFindConvolutionBackwardDataAlgorithmEx(m_cudnn, *m_kernelT, ptr(kernel), m_outT, ptr(srcGrad), *m_conv, m_inT, ptr(grad), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
             return result;
         };
         // Find max Memory needed while running static finder. Workaround for cudnnFind fail. Number of algo is constant as in cudnn 5.1
@@ -358,7 +366,7 @@ protected:
         {
             int returnedAlgoCount = 0;
             cudnnConvolutionBwdDataAlgoPerf_t perfResults[MaxAlgoCount];
-            cudnnStatus_t status = cudnnGetConvolutionBackwardDataAlgorithm_v7(*m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, MaxAlgoCount, &returnedAlgoCount, perfResults);
+            cudnnStatus_t status = cudnnGetConvolutionBackwardDataAlgorithm_v7(m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, MaxAlgoCount, &returnedAlgoCount, perfResults);
             if (status != CUDNN_STATUS_SUCCESS)
                 return status;
             for (int i = 0; i < returnedAlgoCount; ++i)
@@ -390,7 +398,7 @@ protected:
             cudnnStatus_t err = CUDNN_STATUS_EXECUTION_FAILED;
             for (int i = 0; i < MaxAlgoCount; i++)
             {
-                auto err0 = cudnnGetConvolutionBackwardDataWorkspaceSize(*m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, (cudnnConvolutionBwdDataAlgo_t)i, &tmpSize);
+                auto err0 = cudnnGetConvolutionBackwardDataWorkspaceSize(m_cudnn, *m_kernelT, m_outT, *m_conv, m_inT, (cudnnConvolutionBwdDataAlgo_t)i, &tmpSize);
                 if (err0 == CUDNN_STATUS_SUCCESS)
                 {
                     if (m_backDataAlgo.MaxAlgoWorkspaceSize < tmpSize)
@@ -407,7 +415,7 @@ protected:
         // Compute gradients with respect to the output tensor (data).
         if(m_dataType == CUDNN_DATA_HALF) CUDNN_CALL(cudnnSetConvolutionMathType(*m_conv, m_backDataAlgo.AlgoMathType));
         else CUDNN_CALL(cudnnSetConvolutionMathType(*m_conv, CUDNN_DEFAULT_MATH));
-        CUDNN_CALL(cudnnConvolutionBackwardData(*m_cudnn, &C::One, *m_kernelT, ptr(kernel), m_outT, ptr(srcGrad), *m_conv, m_backDataAlgo.selectedAlgo, ptr(workspace), workspace.BufferSize(), accumulateGradient ? &C::One : &C::Zero, m_inT, ptr(grad)));
+        CUDNN_CALL(cudnnConvolutionBackwardData(m_cudnn, &C::One, *m_kernelT, ptr(kernel), m_outT, ptr(srcGrad), *m_conv, m_backDataAlgo.selectedAlgo, ptr(workspace), workspace.BufferSize(), accumulateGradient ? &C::One : &C::Zero, m_inT, ptr(grad)));
     }
 
     void BackwardKernelCore(const Mat& srcGrad, const Mat& in, Mat& kernelGrad, bool accumulateGradient, bool /*allowReuse*/, Mat& workspace) override
@@ -422,11 +430,11 @@ protected:
                 // cudnnFindConvolutionBackwardFilterAlgorithmEx will overwrite the output buffer, thus we create a temporary buffer here
                 // note this memory allocation might fail, so use try...catch for safety
                 auto kernelGradReplace = Matrix<ElemType>((kernelGrad.BufferSize() + sizeof(ElemType) - 1)/sizeof(ElemType), 1, m_deviceId);
-                result = cudnnFindConvolutionBackwardFilterAlgorithmEx(*m_cudnn, m_inT, ptr(in), m_outT, ptr(srcGrad), *m_conv, *m_kernelT, ptr(kernelGradReplace), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
+                result = cudnnFindConvolutionBackwardFilterAlgorithmEx(m_cudnn, m_inT, ptr(in), m_outT, ptr(srcGrad), *m_conv, *m_kernelT, ptr(kernelGradReplace), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
                 kernelGradReplace.ReleaseMemory();
             }
             else
-                result = cudnnFindConvolutionBackwardFilterAlgorithmEx(*m_cudnn, m_inT, ptr(in), m_outT, ptr(srcGrad), *m_conv, *m_kernelT, ptr(kernelGrad), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
+                result = cudnnFindConvolutionBackwardFilterAlgorithmEx(m_cudnn, m_inT, ptr(in), m_outT, ptr(srcGrad), *m_conv, *m_kernelT, ptr(kernelGrad), MaxAlgoCount, &calgo, algoPerf, ptr(workspace), workspace.BufferSize());
             return result;
         };
         // Find max Memory needed while running static finder. Workaround for cudnnFind fail. Number of algo is constant as in cudnn 5.1
@@ -437,13 +445,13 @@ protected:
             {
                 size_t tmpSize = 0;
                 algo = (cudnnConvolutionBwdFilterAlgo_t) 1;
-                auto err = cudnnGetConvolutionBackwardFilterWorkspaceSize(*m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, algo, &tmpSize);
+                auto err = cudnnGetConvolutionBackwardFilterWorkspaceSize(m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, algo, &tmpSize);
                 workspace.Resize((tmpSize + sizeof(ElemType) - 1) / sizeof(ElemType), 1);
                 return err;
             }
             int returnedAlgoCount = 0;
             cudnnConvolutionBwdFilterAlgoPerf_t perfResults[MaxAlgoCount];
-            cudnnStatus_t status = cudnnGetConvolutionBackwardFilterAlgorithm_v7(*m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, MaxAlgoCount, &returnedAlgoCount, perfResults);
+            cudnnStatus_t status = cudnnGetConvolutionBackwardFilterAlgorithm_v7(m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, MaxAlgoCount, &returnedAlgoCount, perfResults);
             if (status != CUDNN_STATUS_SUCCESS)
                 return status;
             for (int i = 0; i < returnedAlgoCount; ++i)
@@ -475,7 +483,7 @@ protected:
             cudnnStatus_t err = CUDNN_STATUS_EXECUTION_FAILED;
             for (int i = 0; i < MaxAlgoCount; i++)
             {
-                auto err0 = cudnnGetConvolutionBackwardFilterWorkspaceSize(*m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, (cudnnConvolutionBwdFilterAlgo_t)i, &tmpSize);
+                auto err0 = cudnnGetConvolutionBackwardFilterWorkspaceSize(m_cudnn, m_inT, m_outT, *m_conv, *m_kernelT, (cudnnConvolutionBwdFilterAlgo_t)i, &tmpSize);
                 if (err0 == CUDNN_STATUS_SUCCESS)
                 {
                     if (m_backFiltAlgo.MaxAlgoWorkspaceSize < tmpSize)
@@ -492,7 +500,7 @@ protected:
         // Compute gradients with respect to the output tensor (data).
         if(m_dataType == CUDNN_DATA_HALF) CUDNN_CALL(cudnnSetConvolutionMathType(*m_conv, m_backFiltAlgo.AlgoMathType));
         else CUDNN_CALL(cudnnSetConvolutionMathType(*m_conv, CUDNN_DEFAULT_MATH));
-        CUDNN_CALL(cudnnConvolutionBackwardFilter(*m_cudnn, &C::One, m_inT, ptr(in), m_outT, ptr(srcGrad), *m_conv, m_backFiltAlgo.selectedAlgo, ptr(workspace), workspace.BufferSize(), accumulateGradient ? &C::One : &C::Zero, *m_kernelT, ptr(kernelGrad)));
+        CUDNN_CALL(cudnnConvolutionBackwardFilter(m_cudnn, &C::One, m_inT, ptr(in), m_outT, ptr(srcGrad), *m_conv, m_backFiltAlgo.selectedAlgo, ptr(workspace), workspace.BufferSize(), accumulateGradient ? &C::One : &C::Zero, *m_kernelT, ptr(kernelGrad)));
     }
 
     void EnsurePoolingInitialized() override
@@ -506,7 +514,7 @@ protected:
         size_t batchSize = in.GetNumCols();
         m_inT.UpdateBatchSize(batchSize);
         m_outT.UpdateBatchSize(batchSize);
-        CUDNN_CALL(cudnnPoolingForward(*m_cudnn, *(m_pool), &C::One, m_inT, ptr(in), &C::Zero, m_outT, ptr(out)));
+        CUDNN_CALL(cudnnPoolingForward(m_cudnn, *(m_pool), &C::One, m_inT, ptr(in), &C::Zero, m_outT, ptr(out)));
     }
 
     void BackwardPoolingCore(const Mat& out, const Mat& srcGrad, const Mat& in, Mat& grad, bool accumulateGradient) override
@@ -514,7 +522,7 @@ protected:
         size_t batchSize = in.GetNumCols();
         m_inT.UpdateBatchSize(batchSize);
         m_outT.UpdateBatchSize(batchSize);
-        CUDNN_CALL(cudnnPoolingBackward(*m_cudnn, *(m_pool), &C::One, m_outT, ptr(out), m_outT, ptr(srcGrad),
+        CUDNN_CALL(cudnnPoolingBackward(m_cudnn, *(m_pool), &C::One, m_outT, ptr(out), m_outT, ptr(srcGrad),
                                         m_inT, ptr(in), accumulateGradient ? &C::One : &C::Zero, m_inT, ptr(grad)));
     }
 
@@ -726,7 +734,7 @@ private:
         }
     };
 
-    CuDnn::ptr_t m_cudnn;
+    cudnnHandle_t m_cudnn;
     cudnnDataType_t m_dataType;
     CuDnnTensor m_inT;
     CuDnnTensor m_outT;
